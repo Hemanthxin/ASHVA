@@ -1,13 +1,14 @@
 import type { Theme } from '../render/Backdrop';
 import type { Mood } from '../systems/AudioSystem';
 import type {
-  CheckpointDef, EnemySpawn, HazardDef, InteractDef, LevelDef, PropDef, RelicDef, SolidDef, TriggerAction, TriggerDef,
+  CheckpointDef, EnemySpawn, HazardDef, InteractDef, LevelDef, PropDef, RelicDef, RopeDef, SolidDef, TriggerAction, TriggerDef,
 } from './types';
 
 /** Compact builder used to author levels as readable code. */
 export class LevelBuilder {
   solids: SolidDef[] = [];
   hazards: HazardDef[] = [];
+  ropes: RopeDef[] = [];
   enemies: EnemySpawn[] = [];
   checkpoints: CheckpointDef[] = [];
   relics: RelicDef[] = [];
@@ -76,6 +77,31 @@ export class LevelBuilder {
   fire(x: number, y: number, w: number, h: number, period = 3, active = 0.5, phase = 0) {
     this.hazards.push({ kind: 'fire', x, y: y - h, w, h, period, active, phase, damage: 14 });
     return this;
+  }
+
+  /** Climbable rope from y0 (top, at ledge height) down to y1. Press up near it to climb. */
+  rope(x: number, y0: number, y1: number, exit: 1 | -1 = 1) {
+    this.ropes.push({ x, y0, y1, exit });
+    return this;
+  }
+  /** Wall dart turret at (x,y) firing in direction dir every period seconds (telegraphed by a glint). */
+  dart(x: number, y: number, dir: 1 | -1, period = 2.6, phase = 0) {
+    this.hazards.push({ kind: 'dart', x, y, w: 18, h: 18, dir, period, phase, damage: 12 });
+    return this;
+  }
+  /** Hidden floor spikes that burst up (after a short warning) when the player gets close. */
+  trapSpikes(x: number, groundY: number, w: number, range = 110) {
+    this.hazards.push({ kind: 'trapspike', x, y: groundY - 26, w, h: 26, range, damage: 16 });
+    return this;
+  }
+  /** A rock that drops from above when the player walks within range of x. */
+  rockfall(x: number, topY: number, groundY: number, range = 90) {
+    this.hazards.push({ kind: 'rockfall', x: x - 28, y: topY, w: 56, h: groundY - topY, range, damage: 20 });
+    return this;
+  }
+  /** Surprise enemies burst out of the shadows when the player crosses x. */
+  ambush(x: number, spawns: EnemySpawn[], text = 'Ambush!') {
+    return this.at(x, { type: 'ambush', spawns, text }, 50);
   }
 
   sentinel(x: number, groundY: number, patrol?: [number, number], arena?: string) {
@@ -151,6 +177,7 @@ export function finish(b: LevelBuilder, m: LevelMeta): LevelDef {
     rain: m.rain ?? true,
     solids: b.solids,
     hazards: b.hazards,
+    ropes: b.ropes,
     enemies: b.enemies,
     checkpoints: b.checkpoints,
     relics: b.relics,

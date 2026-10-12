@@ -106,6 +106,7 @@ class TouchImpl {
       const ny = dy / this.radius;
       input.stickX = Math.abs(nx) < 0.18 ? 0 : Math.max(-1, Math.min(1, nx));
       input.setVirtual('down', ny > 0.55);
+      input.setVirtual('up', ny < -0.5);
       if (ny < -0.8 && !this.flicked) {
         this.flicked = true;
         input.setVirtual('jump', true);
@@ -117,6 +118,7 @@ class TouchImpl {
       this.stickId = -1;
       input.stickX = 0;
       input.setVirtual('down', false);
+      input.setVirtual('up', false);
       this.stick.classList.remove('on');
     };
     zone.addEventListener('pointerup', end);

@@ -16,13 +16,16 @@ export interface SolidDef {
   closed?: boolean;
 }
 
-export type HazardKind = 'spikes' | 'pit' | 'blade' | 'ashfall' | 'fire';
+export type HazardKind = 'spikes' | 'pit' | 'blade' | 'ashfall' | 'fire' | 'dart' | 'trapspike' | 'rockfall';
 export interface HazardDef {
   kind: HazardKind;
   x: number; y: number; w: number; h: number;
   /** For timed hazards (blade/ashfall/fire): cycle length and active fraction. */
   period?: number; active?: number; phase?: number;
   damage?: number;
+  /** dart: firing direction. trapspike / rockfall: trigger distance (px) around the rect. */
+  dir?: 1 | -1;
+  range?: number;
 }
 
 export type EnemyType = 'sentinel' | 'wraith' | 'elite';
@@ -36,6 +39,9 @@ export interface EnemySpawn {
   arena?: string;
   id?: string;
 }
+
+/** A climbable rope. Climbing past the top hops the player off toward . */
+export interface RopeDef { x: number; y0: number; y1: number; exit: 1 | -1 }
 
 export interface CheckpointDef { id: string; x: number; y: number; name: string }
 export interface RelicDef { id: string; x: number; y: number; kind: 'ember' | 'key' | 'lore' }
@@ -61,7 +67,8 @@ export type TriggerAction =
   | { type: 'bossStart' }
   | { type: 'cinematic'; lines: string[]; hold?: number }
   | { type: 'end' }
-  | { type: 'hint'; key: 'debt' | 'shadow' | 'combat' | 'parry' | 'wall' };
+  | { type: 'hint'; key: 'debt' | 'shadow' | 'combat' | 'parry' | 'wall' | 'rope' }
+  | { type: 'ambush'; spawns: EnemySpawn[]; text?: string };
 
 export interface TriggerDef {
   id: string; x: number; y: number; w: number; h: number;
@@ -83,6 +90,7 @@ export interface LevelDef {
   rain: boolean;
   solids: SolidDef[];
   hazards: HazardDef[];
+  ropes: RopeDef[];
   enemies: EnemySpawn[];
   checkpoints: CheckpointDef[];
   relics: RelicDef[];

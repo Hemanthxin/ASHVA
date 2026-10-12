@@ -61,6 +61,12 @@ export abstract class Enemy implements Hittable {
     this.body.vx = 0;
   }
 
+  /** Used by ambushes: the enemy immediately notices the player. */
+  aggro() {
+    if (this.dead) return;
+    this.setState('ALERT');
+  }
+
   parried() {
     if (this.dead) return;
     this.stun(1.0);

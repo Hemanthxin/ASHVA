@@ -36,6 +36,7 @@ export class Atmosphere {
   private boltT = 0;
   private time = 0;
   private yShift = 0;
+  private rainWanted = true;
   private unsub: (() => void) | null = null;
   private rainSpeed = 1;
   readonly outdoor: boolean;
@@ -70,8 +71,9 @@ export class Atmosphere {
 
     this.fg = scene.add.tileSprite(0, H - LAYER_H, w, LAYER_H, this.set.fg.key).setOrigin(0, 0).setScrollFactor(0).setDepth(40).setAlpha(theme === 'sanctum' ? 0.45 : 0.92);
 
-    this.rainFar = scene.add.tileSprite(0, 0, w, H, 'rainFar').setOrigin(0, 0).setScrollFactor(0).setDepth(-5).setVisible(rain);
-    this.rainNear = scene.add.tileSprite(0, 0, w, H, 'rainNear').setOrigin(0, 0).setScrollFactor(0).setDepth(60).setVisible(rain);
+    this.rainWanted = rain;
+    this.rainFar = scene.add.tileSprite(0, 0, w, H, 'rainFar').setOrigin(0, 0).setScrollFactor(0).setDepth(-5);
+    this.rainNear = scene.add.tileSprite(0, 0, w, H, 'rainNear').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
 
     this.vignette = scene.add.image(0, 0, 'vignette').setOrigin(0, 0).setScrollFactor(0).setDepth(100).setDisplaySize(w, H);
     this.vigRed = scene.add.image(0, 0, 'vignetteRed').setOrigin(0, 0).setScrollFactor(0).setDepth(101).setDisplaySize(w, H).setAlpha(0);
@@ -105,7 +107,11 @@ export class Atmosphere {
   applySettings() {
     const reduced = save.settings.reducedFx;
     if (!this.rainFar || !this.rainFar.scene) return;
-    this.rainFar.setVisible(!reduced && this.rainNear.visible);
+    const r = save.settings.rain;
+    const on = this.rainWanted && r !== 'off';
+    const k = r === 'normal' ? 0.5 : 0.22;
+    this.rainNear.setVisible(on).setAlpha(k);
+    this.rainFar.setVisible(on && !reduced).setAlpha(k * 0.7);
     this.embers.setVisible(!reduced);
     this.embers.frequency = reduced ? 800 : this.set.theme === 'sanctum' ? 140 : 260;
   }
@@ -186,7 +192,7 @@ export class Atmosphere {
       }
     }
     if (this.flashV > 0.001) {
-      this.flashRect.setAlpha(this.flashV * (reduced ? 0.4 : 1));
+      this.flashRect.setAlpha(this.flashV * (reduced ? 0.25 : 0.55));
       this.flashV = Math.max(0, this.flashV - dt * 2.4);
     } else if (this.flashRect.alpha > 0) {
       this.flashRect.setAlpha(0);

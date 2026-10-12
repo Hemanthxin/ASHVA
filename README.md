@@ -40,6 +40,7 @@ Chapters 4+ are **not** implemented; the final screen says so.
 | Slide / crouch | `S` / `↓` | pull stick down |
 | Vault | run into a low obstacle | same |
 | Wall-jump | `Space` on a wall, then again | JUMP on a wall |
+| **Climb ropes** | `W` / `↑` near a rope; `W`/`S` to move; direction + `Space` to leap off (reaching the top hops you onto the ledge) | pull the stick up near a rope; direction + JUMP to leap off |
 | Light attack (3-hit combo) | `J` | STRIKE |
 | Heavy attack | `K` | HEAVY |
 | Guard / **parry** | hold `U` (tap just before a hit to parry) | GUARD |
@@ -56,13 +57,15 @@ Combat buttons appear on touch only after the blade / shadow power are found.
 * **Combat** – hitboxes are active only in each attack's active window and hit each target once; anticipation / strike / recovery phases; 3-hit light combo + heavy finisher; knock-back, hit-stop, restrained screen shake, slow-mo on parries/kills; guard & perfect-parry; dodge i-frames.
 * **Enemies** (explicit state machines `PATROL → ALERT → CHASE → ATTACK → RECOVER → HURT → DEAD`): **Fortress Sentinel** (patrol, sight cone, telegraphed spear thrust, longer opening after a whiff), **Sanctum Elite** (armoured two-hit combo), **Sanctum Wraith** (hovers, keeps distance, blinks behind you, red-ring telegraph, double-swipe at high debt).
 * **Boss** – telegraphed slam / sweep (P1), + ground shockwaves, charge (stuns itself on walls), leap slam (P2), + ash-orb rain and combos (P3), kneeling final window. Parrying a boss attack leaves it wide open.
+* **Ropes & high places** – ropes hang from tall ledges (chimney in Chapter I, a cellar and a broken eave in Chapter II, a balcony in Chapter III, a high ledge in the wood). Climbing is a proper player state; ropes lead to optional relics and give an alternative to wall-jumping.
+* **Surprise obstacles** (always telegraphed): hidden floor spikes that burst up after a click-and-dust warning, rocks that rumble loose from the ceiling (red landing marker), wall dart turrets (glint before each shot; darts can be blocked or parried), and ambushes where enemies burst out of the shadows when you cross a point.
 * **Camera** – look-ahead, dead-zone, damped follow, arena locks, scripted focus; adaptive zoom on small screens so characters stay readable on phones; logical width follows the screen aspect (14:9 – 20:9).
 * **Save** – versioned schema in LocalStorage (`ashva.save.v1`), validated/sanitised on load (corrupt or too-new data is discarded gracefully). Checkpoints, abilities, relics, max health, debt, deaths and settings are stored; nothing personal.
 
 ## Audio
 
 `src/systems/AudioSystem.ts` synthesizes everything with the Web Audio API:
-a Hirajoshi-flavoured pentatonic score (plucked koto-like voices, breathy flute phrases with vibrato, soft taiko, a low drone, generated reverb) in four moods (*calm*, *sorrow*, *tense*, *boss*), a rain bed, thunder and ~30 effects. Audio only starts after the first click/tap/key (browser autoplay rules) and the game is fully playable muted. Volumes: Settings → master / music / effects.
+a composed, looping 8-bar piece in D Hirajoshi (warm pad chords, a fixed soft koto arpeggio, a breathy shakuhachi-style melody with vibrato, a deep root note, temple-bell sparkles and gentle taiko) in four moods (*calm*, *sorrow*, *tense*, *boss*), a very soft low-passed rain bed, thunder and ~40 punchy effects (SFX are mixed louder than the music). Audio only starts after the first click/tap/key (browser autoplay rules) and the game is fully playable muted. Volumes: Settings → master / music / effects. **Rain** (Off / Light / Heavy, default *Light*) controls both the rain visuals and the rain sound.
 
 ## Architecture
 

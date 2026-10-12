@@ -21,6 +21,7 @@ export interface Hittable extends Damageable {
 export interface IWorld {
   solids: Solid[];
   hittables: Hittable[];
+  ropes: import('../data/types').RopeDef[];
   player: Player;
   fx: Fx;
   debt: ShadowDebt;

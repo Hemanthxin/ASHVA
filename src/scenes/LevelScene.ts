@@ -14,7 +14,7 @@ import { Player } from '../entities/Player';
 import { Enemy, createEnemy } from '../entities/Enemy';
 import { BOSS_MAX_HP, BOSS_NAME, Boss } from '../entities/Boss';
 import type { Hittable, IWorld } from '../entities/World';
-import type { EnemySpawn, HazardDef, LevelDef, RelicDef, SolidDef, TriggerDef } from '../data/types';
+import type { EnemySpawn, HazardDef, LevelDef, RelicDef, RopeDef, SolidDef, TriggerDef } from '../data/types';
 import { LEVELS, getLevel, levelIndex } from '../data/levels';
 import { hud, fmt } from '../ui/HUD';
 import { menus } from '../ui/Menus';
@@ -25,12 +25,14 @@ import { ensureTextures } from '../utils/assetFallbacks';
 
 interface StartData { levelId: string; checkpoint?: number }
 interface SolidRt { solid: Solid; def: SolidDef; g: Phaser.GameObjects.Graphics; tilt: number }
-interface HazardRt { def: HazardDef }
+interface HazardRt { def: HazardDef; st: number; t: number; y: number }
+interface Dart { x: number; y: number; dir: 1 | -1; life: number; dmg: number }
 interface RelicRt { def: RelicDef; got: boolean; t: number }
 interface Pickup { x: number; y: number; t: number; got: boolean }
 interface Arena { id: string; enemies: Enemy[]; gates: string[]; lock: [number, number]; done: boolean }
 
 const HINTS: Record<string, string> = {
+  rope: 'Press [up] near a rope to climb it. [up] / [down] to move; hold a direction and [jump] to leap off.',
   combat: '[light] strike  ·  [heavy] heavy blow  ·  [dodge] dodge  ·  hold [block] to guard. Tap guard just before a hit to PARRY.',
   shadow: '[shadow] Shadow Dash: a swift, invulnerable lunge that cuts through foes. Every use adds Shadow Debt.',
   debt: 'Shadow Debt: hidden paths appear at 40%, foes grow bolder past 50%. Pay it down at lamps, with embers, and by parrying.',
@@ -58,6 +60,10 @@ export class LevelScene extends Phaser.Scene implements IWorld {
   private relics: RelicRt[] = [];
   private pickups: Pickup[] = [];
   private hazards: HazardRt[] = [];
+  ropes: RopeDef[] = [];
+  private darts: Dart[] = [];
+  private ropeG!: Phaser.GameObjects.Graphics;
+  private ropeShown = false;
   private triggers: Array<{ def: TriggerDef; fired: boolean }> = [];
   private cps: Array<{ x: number; y: number; name: string; reached: boolean }> = [];
   private arenas = new Map<string, Arena>();
@@ -124,6 +130,9 @@ export class LevelScene extends Phaser.Scene implements IWorld {
     this.relics = [];
     this.pickups = [];
     this.hazards = [];
+    this.darts = [];
+    this.ropes = [];
+    this.ropeShown = false;
     this.triggers = [];
     this.cps = [];
     this.arenas.clear();
@@ -152,13 +161,15 @@ export class LevelScene extends Phaser.Scene implements IWorld {
     this.hazG = this.add.graphics().setDepth(6);
     this.relicG = this.add.graphics().setDepth(7);
     this.chaseG = this.add.graphics().setDepth(9);
+    this.ropeG = this.add.graphics().setDepth(4);
 
     this.buildSolids();
     this.buildProps();
     this.buildInteracts();
     this.buildRelics();
 
-    this.hazards = L.hazards.map((def) => ({ def }));
+    this.hazards = L.hazards.map((def) => ({ def, st: 0, t: 0, y: def.kind === 'dart' ? -1 : def.y }));
+    this.ropes = L.ropes ?? [];
     this.triggers = L.triggers.map((def) => ({ def, fired: false }));
     this.cps = L.checkpoints.map((c) => ({ x: c.x, y: c.y, name: c.name, reached: false }));
 
@@ -552,6 +563,10 @@ export class LevelScene extends Phaser.Scene implements IWorld {
         if (overlap(pb, h) && this.pitCd <= 0) this.respawnFall();
         continue;
       }
+      if (h.kind === 'trapspike' || h.kind === 'rockfall' || h.kind === 'dart') {
+        this.updateSpecial(hz, _dt);
+        continue;
+      }
       let live = true;
       if (h.kind !== 'spikes') {
         const ph = this.hazardPhase(h);
@@ -563,13 +578,106 @@ export class LevelScene extends Phaser.Scene implements IWorld {
         }
       }
       if (!live) continue;
-      if (overlap(pb, h) && p.invuln <= 0) {
-        p.hurt(hitInfo({
-          damage: h.damage ?? 15, dir: sign(p.cx - (h.x + h.w / 2)) === 0 ? 1 : (sign(p.cx - (h.x + h.w / 2)) as 1 | -1),
-          knock: 260, knockUp: 260, stun: 0.4, heavy: false, unblockable: true, source: 'hazard', ox: p.cx, oy: p.feetY - 20,
+      if (overlap(pb, h) && p.invuln <= 0) this.hurtByHazard(h);
+    }
+    this.updateDarts(_dt);
+  }
+
+  private hurtByHazard(h: HazardDef) {
+    const p = this.player;
+    const sx = sign(p.cx - (h.x + h.w / 2));
+    p.hurt(hitInfo({
+      damage: h.damage ?? 15, dir: sx === 0 ? 1 : (sx as 1 | -1),
+      knock: 260, knockUp: 260, stun: 0.4, heavy: false, unblockable: true, source: 'hazard', ox: p.cx, oy: p.feetY - 20,
+    }));
+  }
+
+  /** Surprise hazards: each gives a clear warning (sound, dust, glint, marker) before it can hurt. */
+  private updateSpecial(hz: HazardRt, dt: number) {
+    const h = hz.def;
+    const p = this.player;
+    const pb = p.hurtbox();
+    const cx = h.x + h.w / 2;
+    hz.t += dt;
+    if (h.kind === 'trapspike') {
+      const near = !p.dead && Math.abs(p.cx - cx) < (h.range ?? 110) + h.w / 2 && Math.abs(p.feetY - (h.y + h.h)) < 90;
+      if (hz.st === 0 && near) {
+        hz.st = 1;
+        hz.t = 0;
+        audio.sfx('click');
+      } else if (hz.st === 1) {
+        if (Math.random() < 0.4) this.fx.dust(cx + (Math.random() - 0.5) * h.w, h.y + h.h, 1);
+        if (hz.t >= 0.6) {
+          hz.st = 2;
+          hz.t = 0;
+          audio.sfx('pop');
+          this.fx.shake(2, 0.12);
+          this.fx.amber(cx, h.y + h.h, 6);
+        }
+      } else if (hz.st === 2) {
+        if (overlap(pb, h) && p.invuln <= 0) this.hurtByHazard(h);
+        if (hz.t >= 1.1) {
+          hz.st = 3;
+          hz.t = 0;
+        }
+      } else if (hz.st === 3 && hz.t >= 2.2) hz.st = 0;
+    } else if (h.kind === 'rockfall') {
+      const floor = h.y + h.h;
+      const near = !p.dead && Math.abs(p.cx - cx) < (h.range ?? 90) + h.w / 2 && Math.abs(p.feetY - floor) < 140;
+      if (hz.st === 0 && near) {
+        hz.st = 1;
+        hz.t = 0;
+        audio.sfx('rumble');
+        this.fx.shake(2, 0.5);
+      } else if (hz.st === 1) {
+        if (Math.random() < 0.5) this.fx.dust(cx + (Math.random() - 0.5) * h.w, h.y + 6, 1);
+        if (hz.t >= 0.55) {
+          hz.st = 2;
+          hz.t = 0;
+          hz.y = h.y;
+        }
+      } else if (hz.st === 2) {
+        hz.y += 1000 * dt;
+        const rock = { x: cx - 26, y: hz.y, w: 52, h: 52 };
+        if (overlap(pb, rock) && p.invuln <= 0) this.hurtByHazard(h);
+        if (hz.y + 52 >= floor) {
+          hz.st = 3;
+          hz.t = 0;
+          audio.sfx('rockhit');
+          this.fx.shake(5, 0.25);
+          this.fx.dust(cx, floor - 4, 9);
+        }
+      } else if (hz.st === 3 && hz.t > 1.5 && !near) hz.st = 0;
+    } else if (h.kind === 'dart') {
+      const period = h.period ?? 2.6;
+      const cyc = (((this.t / period) + (h.phase ?? 0)) % 1 + 1) % 1;
+      if (hz.y >= 0 && cyc < hz.y) {
+        const dir = h.dir ?? -1;
+        this.darts.push({ x: cx + dir * 12, y: h.y + h.h / 2, dir, life: 1.8, dmg: h.damage ?? 12 });
+        audio.sfx('dart');
+      }
+      hz.y = cyc;
+    }
+  }
+
+  private updateDarts(dt: number) {
+    const p = this.player;
+    for (const d of this.darts) {
+      d.life -= dt;
+      d.x += d.dir * 560 * dt;
+      if (this.solids.some((s) => s.active && s.kind !== 'oneway' && d.x >= s.x && d.x <= s.x + s.w && d.y >= s.y && d.y <= s.y + s.h)) {
+        this.fx.spark(d.x, d.y, (-d.dir) as 1 | -1, 3);
+        d.life = 0;
+        continue;
+      }
+      if (!p.dead && overlap(p.hurtbox(), { x: d.x - 10, y: d.y - 4, w: 20, h: 8 })) {
+        const r = p.hurt(hitInfo({
+          damage: d.dmg, dir: d.dir, knock: 150, knockUp: 90, stun: 0.3, source: 'wave', ox: d.x, oy: d.y,
         }));
+        if (r !== 'dodged') d.life = 0;
       }
     }
+    this.darts = this.darts.filter((d) => d.life > 0);
   }
 
   // ---------------------------------------------------------- relics & pickups
@@ -624,6 +732,7 @@ export class LevelScene extends Phaser.Scene implements IWorld {
       if (!overlap(pb, tr.def)) continue;
       const a = tr.def.action;
       if (a.type === 'end' && this.level.boss && !this.bossDefeated) continue;
+      if ((a.type === 'end' || a.type === 'cinematic') && this.enemies.some((e) => !e.dead && Math.abs(e.x - p.cx) < 650)) continue;
       tr.fired = true;
       this.runAction(a, tr.def);
     }
@@ -653,6 +762,19 @@ export class LevelScene extends Phaser.Scene implements IWorld {
       case 'arenaStart': this.startArena(a.arena, a.lock, a.gates ?? []); break;
       case 'bossStart': this.startBoss(); break;
       case 'cinematic': this.playLines(a.lines, a.hold ?? 3); break;
+      case 'ambush':
+        for (const sp of a.spawns) {
+          const e = this.addEnemy(sp);
+          this.fx.shadowSmoke(sp.x, sp.y - 30, 10);
+          this.fx.violet(sp.x, sp.y - 30, 8);
+          e.aggro();
+        }
+        audio.sfx('ambush');
+        this.fx.shake(4, 0.3);
+        this.atmos.flash(0.18);
+        hud.toast(a.text ?? 'Ambush!', 2.2);
+        audio.setMood('tense');
+        break;
       case 'end': void this.completeLevel(); break;
     }
   }
@@ -711,6 +833,12 @@ export class LevelScene extends Phaser.Scene implements IWorld {
         hud.prompt(this.promptFor(best), input.label('interact'));
         touch.setUse(true);
       }
+    }
+    if (!best) {
+      const rope = !p.dead && !this.locked && !this.cine && p.state !== 'CLIMB' ? p.nearRope(this) : null;
+      if (rope) hud.prompt('Climb the rope', input.label('up'));
+      else if (this.ropeShown) hud.prompt(null);
+      this.ropeShown = !!rope;
     }
     if (best && input.consume('interact', 150)) this.useInteract(best);
   }
@@ -994,6 +1122,7 @@ export class LevelScene extends Phaser.Scene implements IWorld {
     this.drawSolids();
     this.drawProps(realDt);
     this.drawHazards();
+    this.drawRopes();
     this.drawCollectibles();
     this.drawChase();
     for (const v of this.interacts) this.animateInteract(v);
@@ -1081,6 +1210,10 @@ export class LevelScene extends Phaser.Scene implements IWorld {
         }
         continue;
       }
+      if (h.kind === 'trapspike' || h.kind === 'rockfall' || h.kind === 'dart') {
+        this.drawSpecial(g, hz);
+        continue;
+      }
       const ph = this.hazardPhase(h);
       const cx = h.x + h.w / 2;
       if (h.kind === 'blade') {
@@ -1139,6 +1272,133 @@ export class LevelScene extends Phaser.Scene implements IWorld {
     }
   }
 
+  private drawRopes() {
+    const g = this.ropeG;
+    g.clear();
+    const x0 = this.camX - 60;
+    const x1 = this.camX + this.vw + 60;
+    const climbing = this.player.state === 'CLIMB';
+    for (const r of this.ropes) {
+      if (r.x < x0 || r.x > x1) continue;
+      const len = r.y1 - r.y0;
+      const sway = (y: number) => Math.sin(this.t * 1.3 + y * 0.012) * Math.min(3, (y - r.y0) * 0.012);
+      // anchor bracket
+      g.fillStyle(0x0b0f17, 1);
+      g.fillRect(r.x - 9, r.y0 - 8, 18, 8);
+      g.lineStyle(1.5, 0xb08850, 0.8);
+      g.strokeRect(r.x - 9, r.y0 - 8, 18, 8);
+      // the rope
+      for (const [w, col, a, off] of [[4.2, 0x2b2118, 1, 0], [2.6, 0x6b563c, 1, 0], [1, 0xc9ac78, 0.75, -0.8]] as const) {
+        g.lineStyle(w, col, a);
+        g.beginPath();
+        for (let y = r.y0; y <= r.y1; y += 12) {
+          const x = r.x + sway(y) + off;
+          if (y === r.y0) g.moveTo(x, y);
+          else g.lineTo(x, y);
+        }
+        g.strokePath();
+      }
+      // knots
+      g.fillStyle(0x8a7255, 1);
+      for (let y = r.y0 + 20; y < r.y1; y += 26) g.fillCircle(r.x + sway(y), y, 2.4);
+      // faint "climb here" chevrons near the bottom
+      if (!climbing && len > 60) {
+        const a = 0.35 + Math.sin(this.t * 3) * 0.2;
+        g.lineStyle(2, PAL.amberHot, a);
+        for (let i = 0; i < 2; i++) {
+          const cy = r.y1 - 46 - i * 12 - ((this.t * 14) % 12);
+          g.beginPath();
+          g.moveTo(r.x - 7, cy + 5);
+          g.lineTo(r.x, cy - 2);
+          g.lineTo(r.x + 7, cy + 5);
+          g.strokePath();
+        }
+      }
+    }
+  }
+
+  /** Visuals for trap spikes, rockfalls and dart turrets. */
+  private drawSpecial(g: Phaser.GameObjects.Graphics, hz: HazardRt) {
+    const h = hz.def;
+    const cx = h.x + h.w / 2;
+    if (h.kind === 'trapspike') {
+      const fy = h.y + h.h;
+      if (hz.st === 0 || hz.st === 3) {
+        // barely-visible seams in the floor: a hint for sharp-eyed players
+        g.lineStyle(1.2, 0xffffff, hz.st === 3 ? 0.08 : 0.16);
+        for (let x = h.x + 6; x < h.x + h.w; x += 14) {
+          g.beginPath();
+          g.moveTo(x, fy);
+          g.lineTo(x + 5, fy + 5);
+          g.strokePath();
+        }
+      } else if (hz.st === 1) {
+        const k = hz.t / 0.6;
+        g.lineStyle(2, PAL.crimsonHot, 0.35 + 0.6 * k);
+        for (let x = h.x + 4; x < h.x + h.w; x += 12) {
+          g.beginPath();
+          g.moveTo(x, fy);
+          g.lineTo(x + 4 + (Math.random() - 0.5) * 2, fy - 3 - 5 * k);
+          g.strokePath();
+        }
+      } else {
+        const n = Math.max(2, Math.floor(h.w / 12));
+        const rise = hz.st === 2 ? Math.min(1, hz.t / 0.08) : 0;
+        g.fillStyle(PAL.obsidian, 1);
+        for (let i = 0; i < n; i++) {
+          const sx = h.x + (i / n) * h.w;
+          g.fillTriangle(sx, fy, sx + h.w / n, fy, sx + h.w / n / 2, fy - h.h * rise);
+        }
+        g.lineStyle(1.5, 0xe0c0c0, 0.9);
+        for (let i = 0; i < n; i++) {
+          const sx = h.x + (i / n) * h.w;
+          g.beginPath();
+          g.moveTo(sx + h.w / n / 2, fy - h.h * rise);
+          g.lineTo(sx + h.w / n, fy);
+          g.strokePath();
+        }
+      }
+    } else if (h.kind === 'rockfall') {
+      const floor = h.y + h.h;
+      if (hz.st === 1) {
+        const k = hz.t / 0.55;
+        g.fillStyle(PAL.crimsonHot, 0.12 + 0.28 * k);
+        g.fillEllipse(cx, floor - 2, 70 * (0.5 + k * 0.5), 12);
+        g.lineStyle(2, PAL.crimsonHot, 0.4 + 0.5 * Math.abs(Math.sin(this.t * 22)));
+        g.strokeEllipse(cx, floor - 2, 70 * (0.5 + k * 0.5), 12);
+      } else if (hz.st === 2) {
+        const ry = hz.y;
+        g.fillStyle(0x0b0f17, 1);
+        g.beginPath();
+        g.moveTo(cx - 26, ry + 30);
+        g.lineTo(cx - 14, ry + 4);
+        g.lineTo(cx + 12, ry);
+        g.lineTo(cx + 26, ry + 24);
+        g.lineTo(cx + 18, ry + 50);
+        g.lineTo(cx - 12, ry + 52);
+        g.closePath();
+        g.fillPath();
+        g.lineStyle(2, 0x8aa0b8, 0.7);
+        g.beginPath();
+        g.moveTo(cx - 14, ry + 4);
+        g.lineTo(cx + 12, ry);
+        g.lineTo(cx + 26, ry + 24);
+        g.strokePath();
+      }
+    } else if (h.kind === 'dart') {
+      const dir = h.dir ?? -1;
+      const cyc = (((this.t / (h.period ?? 2.6)) + (h.phase ?? 0)) % 1 + 1) % 1;
+      g.fillStyle(0x0b0f17, 1);
+      g.fillRect(h.x, h.y, h.w, h.h);
+      g.lineStyle(1.5, 0x6f86a8, 0.7);
+      g.strokeRect(h.x, h.y, h.w, h.h);
+      const slitX = dir > 0 ? h.x + h.w - 4 : h.x;
+      const glint = cyc > 0.78 ? 0.4 + 0.6 * Math.abs(Math.sin(this.t * 26)) : 0.25;
+      g.fillStyle(cyc > 0.78 ? PAL.crimsonHot : PAL.amber, glint);
+      g.fillRect(slitX, h.y + h.h / 2 - 2, 4, 4);
+    }
+  }
+
   private drawWater(g: Phaser.GameObjects.Graphics, h: HazardDef, x0: number, x1: number) {
     const a = Math.max(h.x, x0);
     const b = Math.min(h.x + h.w, x1);
@@ -1170,6 +1430,15 @@ export class LevelScene extends Phaser.Scene implements IWorld {
   private drawCollectibles() {
     const g = this.relicG;
     g.clear();
+    for (const d of this.darts) {
+      g.lineStyle(2.4, 0xdfe8f2, 0.95);
+      g.beginPath();
+      g.moveTo(d.x - d.dir * 12, d.y);
+      g.lineTo(d.x + d.dir * 4, d.y);
+      g.strokePath();
+      g.fillStyle(PAL.amberHot, 0.7);
+      g.fillCircle(d.x + d.dir * 5, d.y, 2.5);
+    }
     const x0 = this.camX - 60;
     const x1 = this.camX + this.vw + 60;
     for (const r of this.relics) {

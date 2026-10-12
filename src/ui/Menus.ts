@@ -144,6 +144,12 @@ class MenusImpl {
         <div class="row"><span>Effects volume</span><input type="range" min="0" max="100" value="${Math.round(st.sfx * 100)}" data-k="sfx"></div>
         <div class="row"><span>Screen shake</span><div class="toggle ${st.screenShake ? 'on' : ''}" data-t="screenShake" role="switch"></div></div>
         <div class="row"><span>Reduced visual effects</span><div class="toggle ${st.reducedFx ? 'on' : ''}" data-t="reducedFx" role="switch"></div></div>
+        <div class="row"><span>Rain</span>
+          <select class="sel" data-s="rain">
+            <option value="off" ${st.rain === 'off' ? 'selected' : ''}>Off</option>
+            <option value="light" ${st.rain === 'light' ? 'selected' : ''}>Light</option>
+            <option value="normal" ${st.rain === 'normal' ? 'selected' : ''}>Heavy</option>
+          </select></div>
         <div class="row"><span>Touch controls</span>
           <select class="sel" data-s="touchControls">
             <option value="auto" ${st.touchControls === 'auto' ? 'selected' : ''}>Auto</option>
@@ -160,6 +166,7 @@ class MenusImpl {
           <span>L</span><span>Dodge</span>
           <span>I</span><span>Shadow ability</span>
           <span>E</span><span>Interact</span>
+          <span>W · ↑ (near rope)</span><span>Climb · jump + direction to leap off</span>
           <span>Esc</span><span>Pause</span>
         </div>
         <button class="btn" data-a="back">Back</button>
@@ -181,9 +188,11 @@ class MenusImpl {
         audio.sfx('ui');
       });
     });
-    s.querySelector<HTMLSelectElement>('select')!.addEventListener('change', (e) => {
-      save.settings.touchControls = (e.target as HTMLSelectElement).value as never;
-      save.saveSettings();
+    s.querySelectorAll<HTMLSelectElement>('select').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        (save.settings as any)[sel.dataset.s!] = sel.value;
+        save.saveSettings();
+      });
     });
     s.querySelector('[data-a=back]')!.addEventListener('click', () => back());
     this.open('settings', back);

@@ -9,10 +9,11 @@ import { BLADE, COMBO, AttackDef } from '../data/weapons';
 import { ARU_STYLE, Cloth, Pose, drawRig, jointWorld, neutralPose } from '../render/Silhouette';
 import type { IWorld, Hittable } from './World';
 import { Rect, approach, clamp, overlap, sign, smooth } from '../utils/math';
+import type { RopeDef } from '../data/types';
 
 export type PState =
   | 'IDLE' | 'RUN' | 'SPRINT' | 'JUMP' | 'FALL' | 'LAND' | 'SLIDE' | 'VAULT' | 'WALL' | 'WALL_JUMP'
-  | 'ATTACK' | 'DODGE' | 'BLOCK' | 'SHADOW' | 'HURT' | 'DEAD';
+  | 'ATTACK' | 'DODGE' | 'BLOCK' | 'SHADOW' | 'HURT' | 'DEAD' | 'CLIMB';
 
 export interface Abilities { blade: boolean; shadowDash: boolean; wallJump: boolean }
 
@@ -48,6 +49,10 @@ export class Player implements Damageable {
   private vaultT = 0;
   private wallDir: -1 | 0 | 1 = 0;
   private wallCoyote = 0;
+  private rope: RopeDef | null = null;
+  private ropeCd = 0;
+  private climbPhase = 0;
+  private ropeSfxT = 0;
   private comboIdx = 0;
   private comboTimer = 0;
   private atk: AttackDef | null = null;
@@ -122,6 +127,7 @@ export class Player implements Damageable {
     this.shadowCd = Math.max(0, this.shadowCd - dt);
     this.wallLock = Math.max(0, this.wallLock - dt);
     this.wallCoyote = Math.max(0, this.wallCoyote - dt);
+    this.ropeCd = Math.max(0, this.ropeCd - dt);
     this.comboTimer = Math.max(0, this.comboTimer - dt);
     if (this.comboTimer === 0 && this.state !== 'ATTACK') this.comboIdx = 0;
     this.body.dropThrough = Math.max(0, this.body.dropThrough - dt);
@@ -150,6 +156,8 @@ export class Player implements Damageable {
     } else this.coyote = Math.max(0, this.coyote - dt);
 
     let gravityMul = 1;
+
+    if (this.ropeCd <= 0 && input.isDown('up') && w.ropes.length > 0 && this.canGrabRopeFrom()) this.tryGrabRope(w);
 
     switch (this.state) {
       case 'IDLE':
@@ -355,6 +363,52 @@ export class Player implements Damageable {
         break;
       }
 
+      case 'CLIMB': {
+        const r = this.rope;
+        if (!r) {
+          this.setState('FALL');
+          break;
+        }
+        gravityMul = 0;
+        b.vx = 0;
+        b.vy = 0;
+        const up = input.isDown('up');
+        const down = input.isDown('down');
+        const dy = (down ? 1 : 0) - (up ? 1 : 0);
+        if (dy !== 0) {
+          const step = dy * (dy < 0 ? 135 : 160) * dt;
+          const test = { x: b.x + 3, y: b.y + step + 3, w: b.w - 6, h: b.h - 6 };
+          if (!rectBlocked(test, w.solids)) b.y += step;
+          this.climbPhase += Math.abs(step) * 0.14;
+          this.ropeSfxT -= dt;
+          if (this.ropeSfxT <= 0) {
+            this.ropeSfxT = 0.28;
+            audio.sfx('rope');
+          }
+        }
+        b.x = approach(b.x, r.x - b.w / 2, 600 * dt);
+        // Reached the top: hop off onto the ledge.
+        if (up && this.feetY <= r.y0 + 6) {
+          this.leaveRope(w, r.exit, 235, 560, true);
+          break;
+        }
+        // Bottom: let go.
+        if (down && this.feetY >= r.y1 - 2) {
+          this.rope = null;
+          this.ropeCd = 0.3;
+          this.setState('FALL');
+          break;
+        }
+        if (input.consume('jump', 150)) {
+          if (dirX !== 0) this.leaveRope(w, dirX as 1 | -1, 250, 520, false);
+        } else if (input.consume('dodge')) {
+          this.rope = null;
+          this.ropeCd = 0.3;
+          this.setState('FALL');
+        }
+        break;
+      }
+
       case 'HURT': {
         this.hurtT -= dt;
         b.vx = approach(b.vx, 0, 900 * dt);
@@ -449,6 +503,48 @@ export class Player implements Damageable {
     }
     void sprinting;
     return false;
+  }
+
+  private canGrabRopeFrom() {
+    return this.state === 'IDLE' || this.state === 'RUN' || this.state === 'SPRINT' || this.state === 'LAND'
+      || this.state === 'JUMP' || this.state === 'FALL' || this.state === 'WALL_JUMP' || this.state === 'WALL';
+  }
+
+  /** Ropes the player could grab right now (also used for the on-screen prompt). */
+  nearRope(w: IWorld): RopeDef | null {
+    const b = this.body;
+    for (const r of w.ropes) {
+      if (Math.abs(this.cx - r.x) < 18 && b.y + b.h > r.y0 + 10 && b.y < r.y1 - 4) return r;
+    }
+    return null;
+  }
+
+  private tryGrabRope(w: IWorld): boolean {
+    const r = this.nearRope(w);
+    if (!r) return false;
+    if (this.crouched && !this.setCrouch(false, w)) return false;
+    this.rope = r;
+    this.body.vx = 0;
+    this.body.vy = 0;
+    this.jumping = false;
+    this.setState('CLIMB');
+    audio.sfx('grab');
+    return true;
+  }
+
+  private leaveRope(w: IWorld, dir: 1 | -1, vx: number, vy: number, hop: boolean) {
+    const b = this.body;
+    this.rope = null;
+    this.ropeCd = 0.45;
+    b.vx = dir * vx;
+    b.vy = -vy;
+    this.facing = dir;
+    this.wallLock = hop ? 0.5 : 0.15; // keep the hop's momentum (suppresses air braking)
+    this.jumping = !hop;
+    this.setState('JUMP');
+    audio.sfx('jump');
+    w.fx.dust(this.cx, this.body.y + 20, 2);
+    input.flush('jump');
   }
 
   private doWallJump(w: IWorld, dir: 1 | -1) {
@@ -741,6 +837,8 @@ export class Player implements Damageable {
     this.flashT = 0.18;
     this.hurtT = Math.max(0.28, Math.min(0.5, info.stun));
     if (this.crouched) this.setCrouch(false, w);
+    this.rope = null;
+    this.ropeCd = 0.4;
     this.body.vx = info.dir * Math.max(140, info.knock);
     this.body.vy = -Math.max(180, info.knockUp + 180);
     this.setState('HURT');
@@ -1016,6 +1114,16 @@ export class Player implements Damageable {
       case 'ATTACK':
         this.attackPose(p);
         break;
+      case 'CLIMB': {
+        const a = this.climbPhase;
+        p.lean = 0.02;
+        p.armF = [2.6 + Math.sin(a) * 0.35, 0.25];
+        p.armB = [2.7 - Math.sin(a) * 0.35, 0.25];
+        p.legF = [0.55 + Math.sin(a + Math.PI) * 0.35, 1.15];
+        p.legB = [0.25 + Math.sin(a) * 0.35, 1.05];
+        p.weapon = hasBlade ? -2.9 : null;
+        break;
+      }
     }
     void w;
     return p;

@@ -22,6 +22,7 @@ export interface Settings {
   screenShake: boolean;
   reducedFx: boolean;
   touchControls: 'auto' | 'on' | 'off';
+  rain: 'off' | 'light' | 'normal';
 }
 
 export const defaultSave = (): SaveData => ({
@@ -46,6 +47,7 @@ export const defaultSettings = (): Settings => ({
   screenShake: true,
   reducedFx: false,
   touchControls: 'auto',
+  rain: 'light',
 });
 
 const num = (v: unknown, d: number, lo: number, hi: number) =>
@@ -88,6 +90,7 @@ function sanitizeSettings(raw: any): Settings {
     screenShake: bool(raw.screenShake, d.screenShake),
     reducedFx: bool(raw.reducedFx, d.reducedFx),
     touchControls: raw.touchControls === 'on' || raw.touchControls === 'off' ? raw.touchControls : 'auto',
+    rain: raw.rain === 'off' || raw.rain === 'normal' ? raw.rain : 'light',
   };
 }
 

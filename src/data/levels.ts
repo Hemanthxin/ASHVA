@@ -19,7 +19,8 @@ function chapter1a(): LevelDef {
   b.crate(1200, 700, 42, 38);
   b.toast(1330, 'Press [down] while running to slide under barriers', 4.5);
   b.beam(1430, 700, 190, 40);
-  b.toast(1720, 'Wall-jump: press [jump] on a wall, then [jump] again between the walls', 5.5);
+  b.toast(1700, 'Higher up: climb the rope with [up], or wall-jump: [jump] on a wall, then [jump] again between the walls', 6.5);
+  b.rope(1935, 412, 700, 1);
   b.wall(1850, 420, 40, 220);
   b.prop('chain', 1870, 420, { s: 150 });
 
@@ -31,6 +32,7 @@ function chapter1a(): LevelDef {
   b.crate(2900, 380, 44, 38);
   b.prop('lamp', 2780, 380);
   b.roof(3250, 440, 450);
+  b.rockfall(3640, 120, 440, 130);
   b.beam(3380, 440, 170, 40);
   b.prop('lamp', 3300, 440);
   b.roof(3850, 440, 160);
@@ -40,6 +42,7 @@ function chapter1a(): LevelDef {
   b.interact({ id: 'rest1', type: 'rest', x: 4280, y: 480 });
   b.prop('banner', 4560, 480);
   b.roof(4810, 410, 330);
+  b.trapSpikes(4960, 410, 90, 120);
   b.prop('lamp', 4880, 410);
   b.at(4900, { type: 'toast', text: 'The watchtower has seen you. Run!', time: 3 }, 50);
 
@@ -96,6 +99,7 @@ function chapter1a(): LevelDef {
 
   // ---- E. Collapse and escape --------------------------------------------------------------
   b.ground(10580, 640, 380, 'ground');
+  b.ambush(10720, [{ type: 'wraith', x: 10900, y: 540, zone: { x0: 10700, x1: 11000, y0: 420, y1: 600 } }], 'Something follows from the dark!');
   b.at(10640, { type: 'title', title: 'The Wall Falls', sub: 'Keep moving.' }, 40);
   b.at(10640, { type: 'mood', mood: 'tense' }, 40);
   b.crumble(11020, 640, 90).crumble(11140, 650, 90).crumble(11260, 660, 90).crumble(11380, 650, 90).crumble(11500, 640, 90);
@@ -105,6 +109,8 @@ function chapter1a(): LevelDef {
   b.ashfall(11960, 260, 70, 380, 3, 0.7);
   b.ground(12200, 600, 640, 'ground');
   b.prop('torii', 12680, 600);
+  b.dart(12460, 566, -1, 2.8, 0.3);
+  b.dart(11560, 600, -1, 3.2, 0.7);
   b.at(12600, { type: 'end' }, 50);
 
   return finish(b, {
@@ -121,6 +127,7 @@ function chapter1b(): LevelDef {
   b.ground(1060, 650, 800, 'ground');
   b.crate(1300, 650, 120, 34, 'wood');
   b.crate(1650, 650, 100, 32, 'wood');
+  b.trapSpikes(1770, 650, 80, 110);
   b.ledge(1450, 560, 170, 'wood');
   b.prop('bush', 1100, 650).prop('bush', 1800, 650);
   b.ground(1980, 610, 700, 'ground');
@@ -132,6 +139,8 @@ function chapter1b(): LevelDef {
   b.ground(2800, 610, 380, 'ground');
   b.ledge(3180, 610, 240, 'wood'); // fallen trunk
   b.ground(3420, 610, 300, 'ground');
+  b.rockfall(3620, 180, 610, 120);
+  b.dart(3700, 560, -1, 3.0, 0.5);
   b.ledge(3000, 560, 90, 'wood').ledge(3100, 505, 90, 'wood');
   b.shadow(3200, 495, 310);
   b.ledge(3510, 495, 170, 'wood');
@@ -146,9 +155,17 @@ function chapter1b(): LevelDef {
   b.wraith(4250, 520, { x0: 3980, x1: 4540, y0: 360, y1: 530 });
   b.ground(4740, 640, 720, 'ground');
   b.crate(4960, 640, 44, 36, 'wood');
+  b.ledge(4985, 330, 190, 'wood');
+  b.rope(4935, 322, 640, 1);
+  b.relic('c1b_3', 5070, 292, 'key');
+  b.toast(4850, 'A high ledge. Climb the rope with [up]', 4.5);
   b.beam(5150, 640, 170, 40);
   b.relic('c1b_2', 5380, 590, 'key');
   b.ground(5580, 640, 1000, 'ground');
+  b.ambush(5400, [
+    { type: 'sentinel', x: 5560, y: 640, patrol: [5480, 5760] },
+    { type: 'wraith', x: 5700, y: 540, zone: { x0: 5520, x1: 5900, y0: 420, y1: 600 } },
+  ]);
   b.prop('bush', 5700, 640).prop('lamp', 5640, 640);
   b.at(5900, { type: 'mood', mood: 'sorrow' }, 40);
   b.at(5950, {
@@ -163,7 +180,7 @@ function chapter1b(): LevelDef {
   b.at(6300, { type: 'end' }, 50);
   return finish(b, {
     id: 'c1b', chapter: 1, title: 'CHAPTER I', subtitle: 'The Stormy Wood', theme: 'forest', mood: 'tense',
-    width: 6700, height: 1300, camRefY: 335, spawn: { x: 140, y: 650 }, relicTotal: 2,
+    width: 6700, height: 1300, camRefY: 335, spawn: { x: 140, y: 650 }, relicTotal: 3,
   });
 }
 
@@ -188,6 +205,11 @@ function chapter2(): LevelDef {
   b.wraith(1500, 450, { x0: 1250, x1: 1850, y0: 330, y1: 540 });
   b.ground(2060, 650, 700, 'ruin');
   b.sentinel(2400, 650, [2200, 2650]);
+  b.trapSpikes(2330, 650, 90, 120);
+  b.ledge(2550, 380, 210, 'wood');
+  b.rope(2535, 372, 650, 1);
+  b.relic('c2_3', 2660, 342, 'key');
+  b.toast(2440, 'A rope hangs from the broken eaves. [up] to climb', 4);
   b.prop('lamp', 2150, 650);
   b.checkpoint('cp1', 2120, 650, 'Chandra Ward');
   b.interact({ id: 'rest1', type: 'rest', x: 2120, y: 650 });
@@ -199,6 +221,7 @@ function chapter2(): LevelDef {
   b.hazards.push({ kind: 'pit', x: 2760, y: 790, w: 1250, h: 400 });
   b.crumble(2830, 650, 110, 'wood').crumble(3000, 650, 110, 'wood').ledge(3170, 640, 110, 'wood');
   b.mover(3330, 650, 110, 140, 0, 4, 0, 'wood');
+  b.dart(3620, 590, -1, 3.2, 0.2);
   b.ledge(3640, 650, 130, 'wood');
   b.shadow(3060, 555, 330);
   b.relic('c2_hidden', 3220, 515, 'key');
@@ -208,6 +231,7 @@ function chapter2(): LevelDef {
   b.ground(4640, 650, 500, 'ruin', 140);
   b.ground(4020, 920, 1120, 'ruin');
   b.prop('shade', 4020, 790, { w: 420, h: 132 }).prop('shade', 4640, 790, { w: 500, h: 132 });
+  b.rope(4540, 644, 920, 1);
   b.ledge(4455, 850, 70, 'wood').ledge(4520, 790, 70, 'wood').ledge(4585, 725, 70, 'wood');
   b.interact({ id: 'lampC', type: 'lamp', x: 4150, y: 920, group: 'village', need: 3, opens: 'shrineGate', prompt: 'Light the lamp' });
   b.relic('c2_2', 5000, 870, 'key');
@@ -218,6 +242,7 @@ function chapter2(): LevelDef {
   b.at(4300, { type: 'toast', text: 'A cellar. Something is lit below...', time: 3 }, 40);
   // Pre-shrine arena.
   b.ground(5140, 650, 1500, 'ruin');
+  b.rockfall(5420, 220, 650, 130);
   b.checkpoint('cp2', 5240, 650, 'Shrine Approach');
   b.interact({ id: 'rest2', type: 'rest', x: 5240, y: 650 });
   b.at(5560, { type: 'arenaStart', arena: 'v1', lock: [5330, 6500], gates: ['g1', 'g2'] }, 30);
@@ -229,6 +254,10 @@ function chapter2(): LevelDef {
   b.sentinel(6150, 650, [5950, 6300], 'v1');
   // The shrine.
   b.ground(6640, 650, 1500, 'ruin');
+  b.ambush(6780, [
+    { type: 'wraith', x: 7020, y: 540, zone: { x0: 6800, x1: 7300, y0: 420, y1: 600 } },
+    { type: 'wraith', x: 6900, y: 520, zone: { x0: 6800, x1: 7300, y0: 420, y1: 600 } },
+  ], 'The drowned stir...');
   b.gate('shrineGate', 6700, 330, 320, 40, true);
   b.interact({
     id: 'shrine', type: 'shrineGift', x: 7350, y: 650, prompt: 'Kneel at the shrine', title: 'The Shrine of Still Water',
@@ -257,16 +286,20 @@ function chapter3(): LevelDef {
     id: 'lore1', type: 'lore', x: 480, y: 400, prompt: 'Read the inscription', title: 'The First Debt',
     text: ['"We took the power and called it ours."', '"The Guardian was bound to stop the next to take it."'],
   });
+  b.trapSpikes(580, 400, 90, 120);
   b.ground(920, 470, 300, 'stone');
   b.ground(1340, 540, 1700, 'stone');
   b.checkpoint('cp1', 1420, 540, 'Sanctum Gate');
   b.interact({ id: 'rest1', type: 'rest', x: 1420, y: 540 });
   // R2: blade hall
+  b.dart(1370, 500, 1, 3.4, 0.2);
   b.blade(1660, 540 - 150, 90, 150, 3.0, 0.45, 0);
   b.blade(2000, 540 - 150, 90, 150, 3.0, 0.45, 0.5);
   b.spikes(2160, 540, 130);
   b.relic('c3_1', 2230, 400, 'key');
   b.elite(2650, 540, [2450, 2900]);
+  b.rockfall(2330, 260, 540, 130);
+  b.dart(3000, 500, -1, 3.0, 0.6);
   b.prop('brazier', 2400, 540).prop('brazier', 2950, 540);
   // R3: crumbling descent
   b.crumble(3140, 580, 100).crumble(3290, 630, 100).crumble(3440, 680, 100).crumble(3590, 730, 100).crumble(3740, 780, 100);
@@ -291,6 +324,14 @@ function chapter3(): LevelDef {
   b.prop('chain', 5780, 300, { s: 330 }).prop('chain', 6040, 300, { s: 330 });
   // R5: antechamber and boss arena
   b.ground(6200, 700, 700, 'stone');
+  b.ledge(6370, 470, 230, 'stone');
+  b.rope(6355, 462, 700, 1);
+  b.relic('c3_3', 6490, 432, 'key');
+  b.toast(6240, 'A rope leads to a high balcony. [up] to climb', 4.5);
+  b.ambush(6620, [
+    { type: 'wraith', x: 6420, y: 560, zone: { x0: 6220, x1: 6850, y0: 420, y1: 680 } },
+    { type: 'wraith', x: 6760, y: 540, zone: { x0: 6220, x1: 6850, y0: 420, y1: 680 } },
+  ], 'The sanctum wakes!');
   b.interact({
     id: 'lore2', type: 'lore', x: 6480, y: 700, prompt: 'Read the inscription', title: 'The Last Warning',
     text: ['"Beyond lies the Ashen Guardian, who was a king, who was a thief, who was afraid."', '"Strike when he falters. Run when he roars."'],
