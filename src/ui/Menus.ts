@@ -76,7 +76,10 @@ class MenusImpl {
     }
     s.innerHTML = html;
     s.querySelectorAll<HTMLElement>('.btn').forEach((b) => {
-      b.addEventListener('pointerenter', () => b.focus({ preventScroll: true }));
+      b.addEventListener('pointerenter', () => {
+        b.focus({ preventScroll: true });
+        audio.sfx('hover');
+      });
       b.addEventListener('click', () => {
         audio.unlock();
         audio.sfx('ui');

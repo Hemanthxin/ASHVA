@@ -80,7 +80,7 @@ html, body {
 .subtitle { position: absolute; left: 0; right: 0; bottom: 15.5vh; text-align: center; padding: 0 8vw; font-size: clamp(14px, 2.1vw, 22px); letter-spacing: .08em; font-style: italic; text-shadow: 0 2px 12px #000; opacity: 0; transition: opacity .8s; line-height: 1.6; }
 .subtitle.on { opacity: 1; }
 
-.fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .6s; pointer-events: none !important; z-index: 50; }
+.fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity .6s; pointer-events: none !important; z-index: 28; }
 .fade.on { opacity: 1; }
 
 .pause-btn { position: absolute; right: calc(14px + var(--safe-r)); top: calc(12px + var(--safe-t)); width: 46px; height: 46px; border-radius: 50%; border: 1px solid #ffffff44; background: #05070b99; color: var(--moon); font-size: 16px; display: none; align-items: center; justify-content: center; pointer-events: auto !important; z-index: 20; }

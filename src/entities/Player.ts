@@ -53,6 +53,7 @@ export class Player implements Damageable {
   private ropeCd = 0;
   private climbPhase = 0;
   private ropeSfxT = 0;
+  private lastStep = 0;
   private comboIdx = 0;
   private comboTimer = 0;
   private atk: AttackDef | null = null;
@@ -191,10 +192,10 @@ export class Player implements Damageable {
 
         // footsteps + dust
         if (speed > 60) {
-          this.stepT -= dt * (speed / 200);
-          if (this.stepT <= 0) {
-            this.stepT = 0.28;
-            audio.sfx('step', 0.8 + Math.random() * 0.4);
+          const sc = Math.floor(this.runPhase / Math.PI);
+          if (sc !== this.lastStep) {
+            this.lastStep = sc;
+            audio.sfx('step', (sc % 2 ? 0.85 : 1.1) * (speed > 250 ? 0.92 : 1));
             if (speed > 250) w.fx.dust(this.cx - this.facing * 6, this.feetY - 1, 1);
           }
         }
@@ -269,6 +270,11 @@ export class Player implements Damageable {
         b.vx = dir * 20; // keep pressed against the wall
         if (b.vy > PHYS.wallSlideSpeed) b.vy = PHYS.wallSlideSpeed;
         if (Math.random() < 0.25) w.fx.dust(this.cx + dir * 8, this.body.y + 10, 1);
+        this.stepT -= dt;
+        if (this.stepT <= 0 && b.vy > 20) {
+          this.stepT = 0.13;
+          audio.sfx('scrape');
+        }
         if (input.consume('dodge') && !this.airDodged) {
           this.startDodge(w, (-dir) as 1 | -1);
         }

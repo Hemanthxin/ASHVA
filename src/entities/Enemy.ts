@@ -159,6 +159,7 @@ export class Sentinel extends Enemy {
   private runPhase = 0;
   private lostT = 0;
   private alertTimer = 0.45;
+  private clankT = Math.random() * 0.4;
   private strikes = 0;
   private readonly style: RigStyle;
   private readonly elite: boolean;
@@ -200,6 +201,13 @@ export class Sentinel extends Enemy {
     const inFront = sign(dx) === this.facing;
     const canSee = pAlive && adx < this.def.sight * (this.aggr > 1.1 ? 1.2 : 1) && Math.abs(dy) < 110 && (inFront || adx < 90);
     const speedMul = this.aggr;
+    if (Math.abs(b.vx) > 40 && b.onGround && adx < 420) {
+      this.clankT -= dt * (Math.abs(b.vx) / 90);
+      if (this.clankT <= 0) {
+        this.clankT = 0.55;
+        audio.sfx('clank', 0.8 + Math.random() * 0.4);
+      }
+    }
 
     switch (this.state) {
       case 'PATROL': {

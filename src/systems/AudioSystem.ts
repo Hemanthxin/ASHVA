@@ -5,7 +5,7 @@ export type Sfx =
   | 'ui' | 'hover' | 'jump' | 'land' | 'slide' | 'swing' | 'swingHeavy' | 'hit' | 'hitHeavy' | 'parry' | 'block'
   | 'hurt' | 'death' | 'dodge' | 'shadow' | 'pickup' | 'checkpoint' | 'alert' | 'telegraph' | 'slam'
   | 'wraith' | 'enemyDie' | 'relic' | 'bell' | 'thud' | 'crumble' | 'whoosh' | 'roar' | 'wallhit' | 'step'
-  | 'rope' | 'dart' | 'pop' | 'rumble' | 'ambush' | 'click' | 'rockhit' | 'grab';
+  | 'rope' | 'dart' | 'pop' | 'rumble' | 'ambush' | 'click' | 'rockhit' | 'grab' | 'clank' | 'scrape';
 
 /**
  * Fully procedural audio. The score is a composed, looping 8-bar piece in D Hirajoshi (D E F A Bb):
@@ -89,6 +89,8 @@ class AudioImpl {
   private analyser: AnalyserNode | null = null;
   private pendingRain = 0;
   private rainLevel = 0;
+  /** Debug: when set, every requested effect name is recorded here. */
+  log: string[] | null = null;
 
   constructor() {
     save.onSettings(() => {
@@ -194,8 +196,8 @@ class AudioImpl {
     const s = save.settings;
     const t = this.ctx.currentTime;
     this.master.gain.setTargetAtTime(s.master, t, 0.05);
-    this.musicBus.gain.setTargetAtTime(s.music * 0.8 * this.duck, t, 0.15);
-    this.sfxBus.gain.setTargetAtTime(s.sfx * 1.35, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(s.music * 0.55 * this.duck, t, 0.15);
+    this.sfxBus.gain.setTargetAtTime(s.sfx * 2.4, t, 0.05);
     this.ambBus.gain.setTargetAtTime(s.sfx * 0.7, t, 0.2);
   }
 
@@ -571,8 +573,13 @@ class AudioImpl {
   }
 
   sfx(name: Sfx, pitch = 1) {
+    this.log?.push(name);
     const ctx = this.ctx;
-    if (!ctx || ctx.state !== 'running') return;
+    if (!ctx) return;
+    if (ctx.state !== 'running') {
+      void ctx.resume(); // try to recover from a suspended context
+      return;
+    }
     const now = ctx.currentTime;
     // Rate-limit identical effects so rapid events never stack into noise.
     const minGap = name === 'step' ? 0.1 : name === 'rope' ? 0.12 : 0.035;
@@ -583,10 +590,16 @@ class AudioImpl {
       case 'ui': this.tone(t, 'triangle', 660 * pitch, 880 * pitch, 0.12, 0.2); this.tone(t, 'sine', 1320 * pitch, 1320 * pitch, 0.16, 0.06, 0.004, true); break;
       case 'hover': this.tone(t, 'sine', 520, 560, 0.05, 0.06); break;
       case 'click': this.tone(t, 'square', 300, 180, 0.05, 0.12); break;
-      case 'jump': this.noise(t, 0.2, 'bandpass', 500, 1700, 0.2, 1.2, 0.02); this.tone(t, 'sine', 220, 380, 0.14, 0.12); break;
+      case 'jump': this.noise(t, 0.24, 'bandpass', 500, 1800, 0.45, 1.2, 0.02); this.tone(t, 'sine', 200, 520, 0.18, 0.3); this.tone(t, 'triangle', 400, 800, 0.1, 0.1); break;
       case 'land': this.noise(t, 0.16, 'lowpass', 700, 120, 0.4); this.tone(t, 'sine', 100, 48, 0.16, 0.38); break;
       case 'slide': this.noise(t, 0.45, 'bandpass', 1500, 450, 0.18, 0.8, 0.05); break;
-      case 'step': this.noise(t, 0.05, 'lowpass', 800 * pitch, 300, 0.1); this.tone(t, 'sine', 120 * pitch, 70, 0.05, 0.08); break;
+      case 'step':
+        this.noise(t, 0.08, 'lowpass', 1500 * pitch, 400, 0.5);
+        this.tone(t, 'sine', 150 * pitch, 60, 0.1, 0.45);
+        this.noise(t, 0.025, 'highpass', 2600, 2000, 0.14);
+        break;
+      case 'clank': this.tone(t, 'square', 420 * pitch, 300, 0.07, 0.22); this.noise(t, 0.05, 'highpass', 3000, 2500, 0.2); this.tone(t, 'sine', 110, 70, 0.08, 0.25); break;
+      case 'scrape': this.noise(t, 0.12, 'bandpass', 1900, 1200, 0.22, 2, 0.01); break;
       case 'swing': this.noise(t, 0.2, 'bandpass', 900 * pitch, 3200 * pitch, 0.3, 1.5, 0.03); this.tone(t, 'sawtooth', 320, 140, 0.12, 0.05); break;
       case 'swingHeavy': this.noise(t, 0.34, 'bandpass', 500, 2400, 0.42, 1.2, 0.08); this.tone(t, 'sine', 150, 70, 0.3, 0.22); break;
       case 'hit':

@@ -112,6 +112,7 @@ function boot() {
   if (new URLSearchParams(location.search).has('debug')) {
     (window as any).__game = game;
     (window as any).__audio = audio;
+    audio.log = [];
   }
 }
 
